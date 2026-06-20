@@ -1,0 +1,26 @@
+[package]
+name = "demografix"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["Demografix"]
+description = "Official client for the Demografix APIs: genderize.io, agify.io, nationalize.io."
+documentation = "https://genderize.io/documentation/api"
+homepage = "https://github.com/DemografixGenderize/demografix-rust"
+repository = "https://github.com/DemografixGenderize/demografix-rust"
+readme = "README.md"
+keywords = ["genderize", "agify", "nationalize", "demographics", "api"]
+categories = ["api-bindings"]
+
+[features]
+default = []
+blocking = ["reqwest/blocking"]
+
+[dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+async-trait = "0.1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt"] }
