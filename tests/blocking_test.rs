@@ -158,7 +158,8 @@ fn country_id_round_trips() {
         r#"{ "count": 196601, "name": "kim", "gender": "female", "country_id": "US", "probability": 0.94 }"#,
     );
     let shared = std::sync::Arc::new(stub);
-    let client = BlockingDemografix::with_transport(SharedStub(std::sync::Arc::clone(&shared)), None);
+    let client =
+        BlockingDemografix::with_transport(SharedStub(std::sync::Arc::clone(&shared)), None);
     let result = client.genderize("kim", Some("US")).unwrap();
     // Explicit member access and the Deref shortcut agree.
     assert_eq!(result.prediction.country_id.as_deref(), Some("US"));
@@ -169,7 +170,10 @@ fn country_id_round_trips() {
         .query
         .iter()
         .any(|(k, v)| k == "country_id" && v == "US"));
-    assert!(captured.query.iter().any(|(k, v)| k == "name" && v == "kim"));
+    assert!(captured
+        .query
+        .iter()
+        .any(|(k, v)| k == "name" && v == "kim"));
 }
 
 /// A cloneable handle delegating to a shared stub, so a test can inspect the

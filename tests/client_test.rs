@@ -230,7 +230,10 @@ async fn country_id_round_trips() {
         .query
         .iter()
         .any(|(k, v)| k == "country_id" && v == "US"));
-    assert!(captured.query.iter().any(|(k, v)| k == "name" && v == "kim"));
+    assert!(captured
+        .query
+        .iter()
+        .any(|(k, v)| k == "name" && v == "kim"));
 }
 
 // 5. Batch of 11 names raises ValidationError with no HTTP call.

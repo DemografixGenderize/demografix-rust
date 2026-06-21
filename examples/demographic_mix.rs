@@ -24,7 +24,10 @@ async fn main() -> Result<(), Error> {
     let genders = client.genderize_batch(&names, None).await?;
     let mut gender_split: HashMap<String, usize> = HashMap::new();
     for prediction in &genders.results {
-        let label = prediction.gender.clone().unwrap_or_else(|| "unknown".into());
+        let label = prediction
+            .gender
+            .clone()
+            .unwrap_or_else(|| "unknown".into());
         *gender_split.entry(label).or_default() += 1;
     }
     println!("Gender split: {gender_split:?}");

@@ -179,11 +179,7 @@ impl<T: Transport> Demografix<T> {
     }
 
     /// Predict age for one name.
-    pub async fn agify(
-        &self,
-        name: &str,
-        country_id: Option<&str>,
-    ) -> Result<AgifyResult, Error> {
+    pub async fn agify(&self, name: &str, country_id: Option<&str>) -> Result<AgifyResult, Error> {
         let request = self.build_request(AGIFY_BASE, &[name], country_id);
         let (prediction, quota) = self.send_single(request).await?;
         Ok(AgifyResult { prediction, quota })

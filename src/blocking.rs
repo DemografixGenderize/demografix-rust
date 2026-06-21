@@ -169,10 +169,7 @@ impl<T: BlockingTransport> BlockingDemografix<T> {
     }
 
     /// Predict nationality for a list of names (maximum 10).
-    pub fn nationalize_batch(
-        &self,
-        names: &[&str],
-    ) -> Result<Batch<NationalizePrediction>, Error> {
+    pub fn nationalize_batch(&self, names: &[&str]) -> Result<Batch<NationalizePrediction>, Error> {
         validate_batch_size(names)?;
         let request = self.build_request(NATIONALIZE_BASE, names, None);
         let (results, quota) = self.send_batch(request)?;
