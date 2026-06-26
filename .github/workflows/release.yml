@@ -39,14 +39,17 @@ jobs:
       - name: Test
         run: cargo test --features blocking
 
-      # First publish of a NEW crate must use a token: crates.io trusted
-      # publishing requires the crate to already exist (no pending-publisher
-      # like PyPI/RubyGems). After 0.1.0 is live, set up a trusted publisher on
-      # the crate settings and switch back to the OIDC rust-lang/crates-io-auth-action.
+      # Tokenless: exchange the GitHub OIDC token for a short-lived crates.io
+      # token. The crate's trusted publisher (configured on its settings page)
+      # authorizes this repo + workflow + environment.
+      - name: Authenticate to crates.io (OIDC Trusted Publishing)
+        uses: rust-lang/crates-io-auth-action@v1
+        id: auth
+
       - name: Publish to crates.io
         run: cargo publish
         env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
 
   github-release:
     runs-on: ubuntu-latest
