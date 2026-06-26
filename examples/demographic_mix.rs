@@ -15,8 +15,9 @@ use std::collections::HashMap;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Error> {
-    let api_key = std::env::var("DEMOGRAFIX_API_KEY").ok();
-    let client = Demografix::new(api_key.as_deref());
+    let api_key = std::env::var("DEMOGRAFIX_API_KEY")
+        .expect("set DEMOGRAFIX_API_KEY to your Demografix API key");
+    let client = Demografix::new(&api_key);
 
     let names = ["michael", "matthew", "jane", "lois", "nguyen"];
 

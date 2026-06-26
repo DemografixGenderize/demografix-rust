@@ -86,7 +86,7 @@ async fn genderize_single_parses_with_quota() {
     let stub = StubTransport::ok(
         r#"{ "count": 1352696, "name": "peter", "gender": "male", "probability": 1.0 }"#,
     );
-    let client = Demografix::with_transport(stub, None);
+    let client = Demografix::with_transport(stub, "test-key");
     let result = client.genderize("peter", None).await.unwrap();
 
     // Prediction fields read directly off the result through Deref.
@@ -105,7 +105,7 @@ async fn genderize_single_parses_with_quota() {
 #[tokio::test]
 async fn agify_single_parses_with_quota() {
     let stub = StubTransport::ok(r#"{ "count": 311558, "name": "michael", "age": 57 }"#);
-    let client = Demografix::with_transport(stub, None);
+    let client = Demografix::with_transport(stub, "test-key");
     let result = client.agify("michael", None).await.unwrap();
 
     // Prediction fields read directly off the result through Deref.
@@ -122,7 +122,7 @@ async fn nationalize_single_parses_with_quota() {
             "country": [ { "country_id": "VN", "probability": 0.891132 },
                          { "country_id": "MO", "probability": 0.019031 } ] }"#,
     );
-    let client = Demografix::with_transport(stub, None);
+    let client = Demografix::with_transport(stub, "test-key");
     let result = client.nationalize("nguyen").await.unwrap();
 
     // Prediction fields read directly off the result through Deref.
@@ -142,7 +142,7 @@ async fn agify_batch_parses_in_order_with_quota() {
         r#"[ { "count": 311558, "name": "michael", "age": 57 },
             { "count": 55682,  "name": "matthew", "age": 48 } ]"#,
     );
-    let client = Demografix::with_transport(stub, None);
+    let client = Demografix::with_transport(stub, "test-key");
     let batch = client
         .agify_batch(&["michael", "matthew"], None)
         .await
@@ -174,6 +174,11 @@ async fn batch_builds_repeated_name_params() {
     assert_eq!(names, vec!["a", "b", "c"]);
     // No single `name` key in a batch.
     assert!(captured.query.iter().all(|(k, _)| k != "name"));
+    // The API key is always sent on the wire.
+    assert!(captured
+        .query
+        .iter()
+        .any(|(k, v)| k == "apikey" && v == "test-key"));
 }
 
 // 3. Null prediction — gender/age null / country empty, no error raised.
@@ -182,7 +187,7 @@ async fn batch_builds_repeated_name_params() {
 async fn genderize_null_prediction_is_success() {
     let stub =
         StubTransport::ok(r#"{ "name": "xÿz", "gender": null, "probability": 0.0, "count": 0 }"#);
-    let client = Demografix::with_transport(stub, None);
+    let client = Demografix::with_transport(stub, "test-key");
     let result = client.genderize("xÿz", None).await.unwrap();
 
     assert_eq!(result.gender, None);
@@ -193,7 +198,7 @@ async fn genderize_null_prediction_is_success() {
 #[tokio::test]
 async fn agify_null_prediction_is_success() {
     let stub = StubTransport::ok(r#"{ "name": "xÿz", "age": null, "count": 0 }"#);
-    let client = Demografix::with_transport(stub, None);
+    let client = Demografix::with_transport(stub, "test-key");
     let result = client.agify("xÿz", None).await.unwrap();
 
     assert_eq!(result.age, None);
@@ -203,7 +208,7 @@ async fn agify_null_prediction_is_success() {
 #[tokio::test]
 async fn nationalize_null_prediction_is_success() {
     let stub = StubTransport::ok(r#"{ "name": "xÿz", "country": [], "count": 0 }"#);
-    let client = Demografix::with_transport(stub, None);
+    let client = Demografix::with_transport(stub, "test-key");
     let result = client.nationalize("xÿz").await.unwrap();
 
     assert!(result.country.is_empty());
@@ -234,6 +239,11 @@ async fn country_id_round_trips() {
         .query
         .iter()
         .any(|(k, v)| k == "name" && v == "kim"));
+    // The API key is always sent on the wire.
+    assert!(captured
+        .query
+        .iter()
+        .any(|(k, v)| k == "apikey" && v == "test-key"));
 }
 
 // 5. Batch of 11 names raises ValidationError with no HTTP call.
@@ -241,7 +251,7 @@ async fn country_id_round_trips() {
 #[tokio::test]
 async fn batch_over_ten_raises_validation_without_http() {
     let stub = StubTransport::never();
-    let client = Demografix::with_transport(stub, None);
+    let client = Demografix::with_transport(stub, "test-key");
     let names: Vec<&str> = vec!["n"; 11];
     let err = client.genderize_batch(&names, None).await.unwrap_err();
 
@@ -255,13 +265,49 @@ async fn batch_over_ten_raises_validation_without_http() {
     assert_eq!(err.status(), None);
 }
 
+// 7. Constructing without a usable api_key raises ValidationError with no HTTP
+//    call. An empty or blank key is rejected before the transport is touched.
+
+#[tokio::test]
+async fn empty_api_key_raises_validation_without_http() {
+    let stub = StubTransport::never();
+    let client = Demografix::with_transport(stub, "");
+    let err = client.genderize("peter", None).await.unwrap_err();
+
+    match &err {
+        Error::Validation {
+            status,
+            message,
+            quota,
+        } => {
+            assert_eq!(*status, 0);
+            assert_eq!(message, "api_key is required");
+            assert!(quota.is_none());
+        }
+        other => panic!("expected ValidationError, got {other:?}"),
+    }
+    assert_eq!(err.status(), None);
+}
+
+#[tokio::test]
+async fn blank_api_key_raises_validation_without_http() {
+    let stub = StubTransport::never();
+    let client = Demografix::with_transport(stub, "   ");
+    let err = client.nationalize("peter").await.unwrap_err();
+
+    match &err {
+        Error::Validation { message, .. } => assert_eq!(message, "api_key is required"),
+        other => panic!("expected ValidationError, got {other:?}"),
+    }
+}
+
 // 6. 401/402/422/429 map to the right error types carrying status, message,
 //    and (429) quota.
 
 #[tokio::test]
 async fn status_401_maps_to_auth() {
     let stub = StubTransport::error(401, r#"{ "error": "Invalid API key" }"#);
-    let client = Demografix::with_transport(stub, Some("bad"));
+    let client = Demografix::with_transport(stub, "bad");
     let err = client.genderize("peter", None).await.unwrap_err();
 
     match err {
@@ -281,7 +327,7 @@ async fn status_401_maps_to_auth() {
 #[tokio::test]
 async fn status_402_maps_to_subscription() {
     let stub = StubTransport::error(402, r#"{ "error": "Subscription is not active" }"#);
-    let client = Demografix::with_transport(stub, Some("key"));
+    let client = Demografix::with_transport(stub, "key");
     let err = client.agify("michael", None).await.unwrap_err();
 
     match err {
@@ -298,7 +344,7 @@ async fn status_402_maps_to_subscription() {
 #[tokio::test]
 async fn status_422_maps_to_validation() {
     let stub = StubTransport::error(422, r#"{ "error": "Missing 'name' parameter" }"#);
-    let client = Demografix::with_transport(stub, None);
+    let client = Demografix::with_transport(stub, "test-key");
     let err = client.nationalize("").await.unwrap_err();
 
     match err {
@@ -315,7 +361,7 @@ async fn status_422_maps_to_validation() {
 #[tokio::test]
 async fn status_429_maps_to_rate_limit_with_quota() {
     let stub = StubTransport::error(429, r#"{ "error": "Request limit reached" }"#);
-    let client = Demografix::with_transport(stub, Some("key"));
+    let client = Demografix::with_transport(stub, "key");
     let err = client.genderize("peter", None).await.unwrap_err();
 
     match err {
@@ -340,7 +386,7 @@ async fn status_429_maps_to_rate_limit_with_quota() {
 #[tokio::test]
 async fn non_json_error_body_maps_to_transport() {
     let stub = StubTransport::error(502, "<html>502 Bad Gateway</html>");
-    let client = Demografix::with_transport(stub, None);
+    let client = Demografix::with_transport(stub, "test-key");
     let err = client.genderize("peter", None).await.unwrap_err();
 
     match err {
@@ -366,7 +412,7 @@ where
     let handle = StubTransportHandle {
         inner: Arc::clone(&shared),
     };
-    let client = Demografix::with_transport(handle, None);
+    let client = Demografix::with_transport(handle, "test-key");
     body(client).await;
     shared.captured()
 }

@@ -89,7 +89,7 @@ fn genderize_single_parses_with_quota() {
     let stub = StubTransport::ok(
         r#"{ "count": 1352696, "name": "peter", "gender": "male", "probability": 1.0 }"#,
     );
-    let client = BlockingDemografix::with_transport(stub, None);
+    let client = BlockingDemografix::with_transport(stub, "test-key");
     let result = client.genderize("peter", None).unwrap();
 
     // Prediction fields read directly off the result through Deref.
@@ -110,7 +110,7 @@ fn nationalize_single_parses_with_quota() {
             "country": [ { "country_id": "VN", "probability": 0.891132 },
                          { "country_id": "MO", "probability": 0.019031 } ] }"#,
     );
-    let client = BlockingDemografix::with_transport(stub, None);
+    let client = BlockingDemografix::with_transport(stub, "test-key");
     let result = client.nationalize("nguyen").unwrap();
 
     // Prediction fields read directly off the result through Deref.
@@ -127,7 +127,7 @@ fn agify_batch_parses_in_order_with_quota() {
         r#"[ { "count": 311558, "name": "michael", "age": 57 },
             { "count": 55682,  "name": "matthew", "age": 48 } ]"#,
     );
-    let client = BlockingDemografix::with_transport(stub, None);
+    let client = BlockingDemografix::with_transport(stub, "test-key");
     let batch = client.agify_batch(&["michael", "matthew"], None).unwrap();
 
     assert_eq!(batch.results.len(), 2);
@@ -143,7 +143,7 @@ fn agify_batch_parses_in_order_with_quota() {
 #[test]
 fn agify_null_prediction_is_success() {
     let stub = StubTransport::ok(r#"{ "name": "xÿz", "age": null, "count": 0 }"#);
-    let client = BlockingDemografix::with_transport(stub, None);
+    let client = BlockingDemografix::with_transport(stub, "test-key");
     let result = client.agify("xÿz", None).unwrap();
 
     assert_eq!(result.age, None);
@@ -159,7 +159,7 @@ fn country_id_round_trips() {
     );
     let shared = std::sync::Arc::new(stub);
     let client =
-        BlockingDemografix::with_transport(SharedStub(std::sync::Arc::clone(&shared)), None);
+        BlockingDemografix::with_transport(SharedStub(std::sync::Arc::clone(&shared)), "test-key");
     let result = client.genderize("kim", Some("US")).unwrap();
     // Explicit member access and the Deref shortcut agree.
     assert_eq!(result.prediction.country_id.as_deref(), Some("US"));
@@ -174,6 +174,11 @@ fn country_id_round_trips() {
         .query
         .iter()
         .any(|(k, v)| k == "name" && v == "kim"));
+    // The API key is always sent on the wire.
+    assert!(captured
+        .query
+        .iter()
+        .any(|(k, v)| k == "apikey" && v == "test-key"));
 }
 
 /// A cloneable handle delegating to a shared stub, so a test can inspect the
@@ -191,7 +196,7 @@ impl BlockingTransport for SharedStub {
 #[test]
 fn batch_over_ten_raises_validation_without_http() {
     let stub = StubTransport::never();
-    let client = BlockingDemografix::with_transport(stub, None);
+    let client = BlockingDemografix::with_transport(stub, "test-key");
     let names: Vec<&str> = vec!["n"; 11];
     let err = client.genderize_batch(&names, None).unwrap_err();
 
@@ -205,13 +210,37 @@ fn batch_over_ten_raises_validation_without_http() {
     assert_eq!(err.status(), None);
 }
 
+// 7. Constructing without a usable api_key raises ValidationError with no HTTP
+//    call, on the blocking client as well.
+
+#[test]
+fn empty_api_key_raises_validation_without_http() {
+    let stub = StubTransport::never();
+    let client = BlockingDemografix::with_transport(stub, "");
+    let err = client.genderize("peter", None).unwrap_err();
+
+    match &err {
+        Error::Validation {
+            status,
+            message,
+            quota,
+        } => {
+            assert_eq!(*status, 0);
+            assert_eq!(message, "api_key is required");
+            assert!(quota.is_none());
+        }
+        other => panic!("expected ValidationError, got {other:?}"),
+    }
+    assert_eq!(err.status(), None);
+}
+
 // 6. 401/402/422/429 map to the right error types carrying status, message,
 //    and (429) quota.
 
 #[test]
 fn status_401_maps_to_auth() {
     let stub = StubTransport::error(401, r#"{ "error": "Invalid API key" }"#);
-    let client = BlockingDemografix::with_transport(stub, Some("bad"));
+    let client = BlockingDemografix::with_transport(stub, "bad");
     let err = client.genderize("peter", None).unwrap_err();
 
     match err {
@@ -231,7 +260,7 @@ fn status_401_maps_to_auth() {
 #[test]
 fn status_402_maps_to_subscription() {
     let stub = StubTransport::error(402, r#"{ "error": "Subscription is not active" }"#);
-    let client = BlockingDemografix::with_transport(stub, Some("key"));
+    let client = BlockingDemografix::with_transport(stub, "key");
     let err = client.agify("michael", None).unwrap_err();
 
     match err {
@@ -243,7 +272,7 @@ fn status_402_maps_to_subscription() {
 #[test]
 fn status_422_maps_to_validation() {
     let stub = StubTransport::error(422, r#"{ "error": "Missing 'name' parameter" }"#);
-    let client = BlockingDemografix::with_transport(stub, None);
+    let client = BlockingDemografix::with_transport(stub, "test-key");
     let err = client.nationalize("").unwrap_err();
 
     match err {
@@ -260,7 +289,7 @@ fn status_422_maps_to_validation() {
 #[test]
 fn status_429_maps_to_rate_limit_with_quota() {
     let stub = StubTransport::error(429, r#"{ "error": "Request limit reached" }"#);
-    let client = BlockingDemografix::with_transport(stub, Some("key"));
+    let client = BlockingDemografix::with_transport(stub, "key");
     let err = client.genderize("peter", None).unwrap_err();
 
     match err {
@@ -285,7 +314,7 @@ fn status_429_maps_to_rate_limit_with_quota() {
 #[test]
 fn non_json_error_body_maps_to_transport() {
     let stub = StubTransport::error(502, "<html>502 Bad Gateway</html>");
-    let client = BlockingDemografix::with_transport(stub, None);
+    let client = BlockingDemografix::with_transport(stub, "test-key");
     let err = client.genderize("peter", None).unwrap_err();
 
     match err {

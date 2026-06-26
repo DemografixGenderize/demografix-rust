@@ -124,22 +124,23 @@ impl Transport for ReqwestTransport {
 /// it never holds or caches quota.
 pub struct Demografix<T: Transport = ReqwestTransport> {
     transport: T,
-    api_key: Option<String>,
+    api_key: String,
 }
 
 impl Demografix<ReqwestTransport> {
     /// Build a client with the default 10-second timeout.
     ///
-    /// Pass `Some(key)` to authenticate, or `None` for the free per-IP tier.
-    pub fn new(api_key: Option<&str>) -> Self {
+    /// `api_key` is required. An empty or blank key makes every request fail
+    /// with [`Error::Validation`] before any HTTP call.
+    pub fn new(api_key: &str) -> Self {
         Self::with_timeout(api_key, DEFAULT_TIMEOUT)
     }
 
     /// Build a client with a custom request timeout.
-    pub fn with_timeout(api_key: Option<&str>, timeout: Duration) -> Self {
+    pub fn with_timeout(api_key: &str, timeout: Duration) -> Self {
         Demografix {
             transport: ReqwestTransport::new(timeout),
-            api_key: api_key.map(str::to_string),
+            api_key: api_key.to_string(),
         }
     }
 }
@@ -148,10 +149,10 @@ impl<T: Transport> Demografix<T> {
     /// Build a client over a custom transport. Internal; used by tests to inject
     /// a stub. The public API does not expose a base-URL option.
     #[doc(hidden)]
-    pub fn with_transport(transport: T, api_key: Option<&str>) -> Self {
+    pub fn with_transport(transport: T, api_key: &str) -> Self {
         Demografix {
             transport,
-            api_key: api_key.map(str::to_string),
+            api_key: api_key.to_string(),
         }
     }
 
@@ -215,12 +216,12 @@ impl<T: Transport> Demografix<T> {
         Ok(Batch { results, quota })
     }
 
-    /// Build a request, adding `name`/`name[]`, `country_id`, and `apikey` only
-    /// as appropriate.
+    /// Build a request, adding `name`/`name[]`, the always-present `apikey`, and
+    /// `country_id` only when set.
     fn build_request(&self, base: &str, names: &[&str], country_id: Option<&str>) -> Request {
         Request {
             url: base.to_string(),
-            query: build_query(names, country_id, self.api_key.as_deref()),
+            query: build_query(names, country_id, &self.api_key),
             user_agent: USER_AGENT.to_string(),
         }
     }
@@ -230,6 +231,7 @@ impl<T: Transport> Demografix<T> {
         &self,
         request: Request,
     ) -> Result<(P, Quota), Error> {
+        validate_api_key(&self.api_key)?;
         let response = self.transport.execute(request).await?;
         decode_response(&response)
     }
@@ -239,6 +241,7 @@ impl<T: Transport> Demografix<T> {
         &self,
         request: Request,
     ) -> Result<(Vec<P>, Quota), Error> {
+        validate_api_key(&self.api_key)?;
         let response = self.transport.execute(request).await?;
         let (results, quota) = decode_response::<Vec<P>>(&response)?;
         Ok((results, quota))
@@ -246,12 +249,12 @@ impl<T: Transport> Demografix<T> {
 }
 
 /// Build the ordered query parameters for a request: a single `name=` for one
-/// name or repeated `name[]=` for a batch, then `country_id` and `apikey` only
-/// when set. Shared by the async and blocking clients.
+/// name or repeated `name[]=` for a batch, then `country_id` only when set, and
+/// the always-present `apikey`. Shared by the async and blocking clients.
 pub(crate) fn build_query(
     names: &[&str],
     country_id: Option<&str>,
-    api_key: Option<&str>,
+    api_key: &str,
 ) -> Vec<(String, String)> {
     let mut query: Vec<(String, String)> = Vec::new();
     if names.len() == 1 {
@@ -264,10 +267,21 @@ pub(crate) fn build_query(
     if let Some(country_id) = country_id {
         query.push(("country_id".to_string(), country_id.to_string()));
     }
-    if let Some(api_key) = api_key {
-        query.push(("apikey".to_string(), api_key.to_string()));
-    }
+    query.push(("apikey".to_string(), api_key.to_string()));
     query
+}
+
+/// Reject an empty or blank API key before any HTTP call. Shared by the async
+/// and blocking clients so both refuse a missing key identically.
+pub(crate) fn validate_api_key(api_key: &str) -> Result<(), Error> {
+    if api_key.trim().is_empty() {
+        return Err(Error::Validation {
+            status: 0,
+            message: "api_key is required".to_string(),
+            quota: None,
+        });
+    }
+    Ok(())
 }
 
 /// Reject a batch over 10 names before any HTTP call.

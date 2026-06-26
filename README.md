@@ -1,6 +1,6 @@
 # demografix (Rust)
 
-Official Rust client for the Demografix APIs: [genderize.io](https://genderize.io) (gender), [agify.io](https://agify.io) (age), and [nationalize.io](https://nationalize.io) (nationality). One async client covers all three services and reports the remaining quota carried on every response.
+Run demographic analysis over names — predicted gender, age, and nationality — from one async Rust client. The crate covers [genderize.io](https://genderize.io), [agify.io](https://agify.io), and [nationalize.io](https://nationalize.io).
 
 ## Install
 
@@ -21,8 +21,8 @@ use demografix::Demografix;
 
 #[tokio::main]
 async fn main() -> Result<(), demografix::Error> {
-    // api_key is optional. Omit it (pass None) to use the free per-IP tier.
-    let client = Demografix::new(Some("YOUR_API_KEY"));
+    // api_key is required.
+    let client = Demografix::new("YOUR_API_KEY");
 
     let names = ["michael", "matthew", "jane"];
     let ages = client.agify_batch(&names, None).await?;
@@ -170,7 +170,7 @@ async fn genderize_with_backoff(
 | `nationalize(name)` | `NationalizeResult` | no |
 | `nationalize_batch(names)` | `Batch<NationalizePrediction>` | no |
 
-Construct the client with `Demografix::new(api_key)` for the default 10-second timeout, or `Demografix::with_timeout(api_key, duration)` to set your own. The API key is optional; pass `None` to use the free per-IP tier. Omitting a key requires no account.
+Construct the client with `Demografix::new(api_key)` for the default 10-second timeout, or `Demografix::with_timeout(api_key, duration)` to set your own. The API key is required. An empty or blank key makes every request fail with `Error::Validation` before any HTTP call.
 
 ## Blocking
 
@@ -187,7 +187,7 @@ demografix = { version = "0.1.0", features = ["blocking"] }
 use demografix::BlockingDemografix;
 
 fn main() -> Result<(), demografix::Error> {
-    let client = BlockingDemografix::new(None);
+    let client = BlockingDemografix::new("YOUR_API_KEY");
 
     let names = ["michael", "matthew", "jane"];
     let batch = client.agify_batch(&names, None)?;
@@ -202,7 +202,7 @@ fn main() -> Result<(), demografix::Error> {
 
 ## API keys
 
-Create a key in your account dashboard at [genderize.io](https://genderize.io), [agify.io](https://agify.io), or [nationalize.io](https://nationalize.io). One key works across all three services and shares one quota. Authenticated requests require an API key.
+An API key is required. Creating one is free and includes 2,500 requests per month. Generate a key in your dashboard at [genderize.io](https://genderize.io), [agify.io](https://agify.io), or [nationalize.io](https://nationalize.io). One key works across all three services.
 
 Full API reference: <https://genderize.io/documentation/api>
 

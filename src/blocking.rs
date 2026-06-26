@@ -7,8 +7,8 @@
 //! same hardcoded constants used by the async client.
 
 use crate::client::{
-    build_query, decode_response, validate_batch_size, Request, AGIFY_BASE, GENDERIZE_BASE,
-    NATIONALIZE_BASE, USER_AGENT,
+    build_query, decode_response, validate_api_key, validate_batch_size, Request, AGIFY_BASE,
+    GENDERIZE_BASE, NATIONALIZE_BASE, USER_AGENT,
 };
 use crate::errors::Error;
 use crate::models::{
@@ -88,22 +88,23 @@ impl BlockingTransport for ReqwestBlockingTransport {
 /// client holds the API key and the timeout; it never holds or caches quota.
 pub struct BlockingDemografix<T: BlockingTransport = ReqwestBlockingTransport> {
     transport: T,
-    api_key: Option<String>,
+    api_key: String,
 }
 
 impl BlockingDemografix<ReqwestBlockingTransport> {
     /// Build a client with the default 10-second timeout.
     ///
-    /// Pass `Some(key)` to authenticate, or `None` for the free per-IP tier.
-    pub fn new(api_key: Option<&str>) -> Self {
+    /// `api_key` is required. An empty or blank key makes every request fail
+    /// with [`Error::Validation`] before any HTTP call.
+    pub fn new(api_key: &str) -> Self {
         Self::with_timeout(api_key, DEFAULT_TIMEOUT)
     }
 
     /// Build a client with a custom request timeout.
-    pub fn with_timeout(api_key: Option<&str>, timeout: Duration) -> Self {
+    pub fn with_timeout(api_key: &str, timeout: Duration) -> Self {
         BlockingDemografix {
             transport: ReqwestBlockingTransport::new(timeout),
-            api_key: api_key.map(str::to_string),
+            api_key: api_key.to_string(),
         }
     }
 }
@@ -112,10 +113,10 @@ impl<T: BlockingTransport> BlockingDemografix<T> {
     /// Build a client over a custom transport. Internal; used by tests to inject
     /// a stub. The public API does not expose a base-URL option.
     #[doc(hidden)]
-    pub fn with_transport(transport: T, api_key: Option<&str>) -> Self {
+    pub fn with_transport(transport: T, api_key: &str) -> Self {
         BlockingDemografix {
             transport,
-            api_key: api_key.map(str::to_string),
+            api_key: api_key.to_string(),
         }
     }
 
@@ -179,17 +180,19 @@ impl<T: BlockingTransport> BlockingDemografix<T> {
     fn build_request(&self, base: &str, names: &[&str], country_id: Option<&str>) -> Request {
         Request {
             url: base.to_string(),
-            query: build_query(names, country_id, self.api_key.as_deref()),
+            query: build_query(names, country_id, &self.api_key),
             user_agent: USER_AGENT.to_string(),
         }
     }
 
     fn send_single<P: DeserializeOwned>(&self, request: Request) -> Result<(P, Quota), Error> {
+        validate_api_key(&self.api_key)?;
         let response = self.transport.execute(request)?;
         decode_response(&response)
     }
 
     fn send_batch<P: DeserializeOwned>(&self, request: Request) -> Result<(Vec<P>, Quota), Error> {
+        validate_api_key(&self.api_key)?;
         let response = self.transport.execute(request)?;
         let (results, quota) = decode_response::<Vec<P>>(&response)?;
         Ok((results, quota))

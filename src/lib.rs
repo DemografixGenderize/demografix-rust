@@ -13,7 +13,7 @@
 //! use demografix::Demografix;
 //!
 //! # async fn run() -> Result<(), demografix::Error> {
-//! let client = Demografix::new(Some("YOUR_API_KEY"));
+//! let client = Demografix::new("YOUR_API_KEY");
 //!
 //! // Single name: prediction fields read straight off the result via Deref.
 //! let peter = client.genderize("peter", None).await?;
@@ -32,8 +32,8 @@
 //! ```
 //!
 //! The base URLs and the User-Agent are hardcoded constants. The constructor
-//! takes only an optional API key and an optional timeout. Omit the key for the
-//! free per-IP tier.
+//! takes a required API key and an optional timeout. An empty or blank key makes
+//! every request fail with [`Error::Validation`] before any HTTP call.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
