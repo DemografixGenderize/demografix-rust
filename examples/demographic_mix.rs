@@ -7,8 +7,7 @@
 //! ```
 //!
 //! The script batches one list of names across all three services and prints a
-//! gender split, an age distribution, and a nationality mix. It never labels an
-//! individual.
+//! gender split, an age distribution, and a nationality mix.
 
 use demografix::{Demografix, Error};
 use std::collections::HashMap;

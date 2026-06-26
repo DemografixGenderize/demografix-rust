@@ -14,7 +14,7 @@ The client is async and depends on a Tokio runtime. A synchronous surface, `Bloc
 
 ## Quickstart
 
-Construct a client, batch over a list of names, read the predictions, and read the remaining quota. The result of a batch is an aggregate, not a per-person label.
+Construct a client, batch over a list of names, read the predictions, and read the remaining quota.
 
 ```rust
 use demografix::Demografix;
