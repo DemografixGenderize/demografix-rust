@@ -181,6 +181,39 @@ async fn batch_builds_repeated_name_params() {
         .any(|(k, v)| k == "apikey" && v == "test-key"));
 }
 
+// 8. A one-name batch still sends name[] and parses a one-element array.
+
+#[tokio::test]
+async fn one_name_batch_parses_one_element_array() {
+    let stub = StubTransport::ok(
+        r#"[ { "count": 1352696, "name": "peter", "gender": "male", "probability": 1.0 } ]"#,
+    );
+    let client = Demografix::with_transport(stub, "test-key");
+    let batch = client.genderize_batch(&["peter"], None).await.unwrap();
+
+    assert_eq!(batch.results.len(), 1);
+    assert_eq!(batch.results[0].gender.as_deref(), Some("male"));
+    assert_eq!(batch.quota.remaining, 24987);
+}
+
+#[tokio::test]
+async fn one_name_batch_builds_name_array_param() {
+    let stub = StubTransport::ok(r#"[]"#);
+    let captured = run_and_capture(stub, |client| async move {
+        let _ = client.agify_batch(&["michael"], None).await;
+    })
+    .await;
+
+    let names: Vec<&str> = captured
+        .query
+        .iter()
+        .filter(|(k, _)| k == "name[]")
+        .map(|(_, v)| v.as_str())
+        .collect();
+    assert_eq!(names, vec!["michael"]);
+    assert!(captured.query.iter().all(|(k, _)| k != "name"));
+}
+
 // 3. Null prediction — gender/age null / country empty, no error raised.
 
 #[tokio::test]

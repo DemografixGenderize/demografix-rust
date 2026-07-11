@@ -162,7 +162,7 @@ impl<T: Transport> Demografix<T> {
         name: &str,
         country_id: Option<&str>,
     ) -> Result<GenderizeResult, Error> {
-        let request = self.build_request(GENDERIZE_BASE, &[name], country_id);
+        let request = self.build_request(GENDERIZE_BASE, &[name], country_id, false);
         let (prediction, quota) = self.send_single(request).await?;
         Ok(GenderizeResult { prediction, quota })
     }
@@ -174,14 +174,14 @@ impl<T: Transport> Demografix<T> {
         country_id: Option<&str>,
     ) -> Result<Batch<GenderizePrediction>, Error> {
         validate_batch_size(names)?;
-        let request = self.build_request(GENDERIZE_BASE, names, country_id);
+        let request = self.build_request(GENDERIZE_BASE, names, country_id, true);
         let (results, quota) = self.send_batch(request).await?;
         Ok(Batch { results, quota })
     }
 
     /// Predict age for one name.
     pub async fn agify(&self, name: &str, country_id: Option<&str>) -> Result<AgifyResult, Error> {
-        let request = self.build_request(AGIFY_BASE, &[name], country_id);
+        let request = self.build_request(AGIFY_BASE, &[name], country_id, false);
         let (prediction, quota) = self.send_single(request).await?;
         Ok(AgifyResult { prediction, quota })
     }
@@ -193,14 +193,14 @@ impl<T: Transport> Demografix<T> {
         country_id: Option<&str>,
     ) -> Result<Batch<AgifyPrediction>, Error> {
         validate_batch_size(names)?;
-        let request = self.build_request(AGIFY_BASE, names, country_id);
+        let request = self.build_request(AGIFY_BASE, names, country_id, true);
         let (results, quota) = self.send_batch(request).await?;
         Ok(Batch { results, quota })
     }
 
     /// Predict nationality for one name. Nationalize takes no `country_id`.
     pub async fn nationalize(&self, name: &str) -> Result<NationalizeResult, Error> {
-        let request = self.build_request(NATIONALIZE_BASE, &[name], None);
+        let request = self.build_request(NATIONALIZE_BASE, &[name], None, false);
         let (prediction, quota) = self.send_single(request).await?;
         Ok(NationalizeResult { prediction, quota })
     }
@@ -211,17 +211,23 @@ impl<T: Transport> Demografix<T> {
         names: &[&str],
     ) -> Result<Batch<NationalizePrediction>, Error> {
         validate_batch_size(names)?;
-        let request = self.build_request(NATIONALIZE_BASE, names, None);
+        let request = self.build_request(NATIONALIZE_BASE, names, None, true);
         let (results, quota) = self.send_batch(request).await?;
         Ok(Batch { results, quota })
     }
 
     /// Build a request, adding `name`/`name[]`, the always-present `apikey`, and
     /// `country_id` only when set.
-    fn build_request(&self, base: &str, names: &[&str], country_id: Option<&str>) -> Request {
+    fn build_request(
+        &self,
+        base: &str,
+        names: &[&str],
+        country_id: Option<&str>,
+        batch: bool,
+    ) -> Request {
         Request {
             url: base.to_string(),
-            query: build_query(names, country_id, &self.api_key),
+            query: build_query(names, country_id, &self.api_key, batch),
             user_agent: USER_AGENT.to_string(),
         }
     }
@@ -248,21 +254,24 @@ impl<T: Transport> Demografix<T> {
     }
 }
 
-/// Build the ordered query parameters for a request: a single `name=` for one
-/// name or repeated `name[]=` for a batch, then `country_id` only when set, and
+/// Build the ordered query parameters for a request: `name=` for a single call
+/// or repeated `name[]=` for a batch call, then `country_id` only when set, and
 /// the always-present `apikey`. Shared by the async and blocking clients.
 pub(crate) fn build_query(
     names: &[&str],
     country_id: Option<&str>,
     api_key: &str,
+    batch: bool,
 ) -> Vec<(String, String)> {
     let mut query: Vec<(String, String)> = Vec::new();
-    if names.len() == 1 {
-        query.push(("name".to_string(), names[0].to_string()));
-    } else {
+    if batch {
+        // Always name[], even for one name: the API keys its response shape on
+        // the parameter form, and a batch call must decode an array.
         for name in names {
             query.push(("name[]".to_string(), name.to_string()));
         }
+    } else {
+        query.push(("name".to_string(), names[0].to_string()));
     }
     if let Some(country_id) = country_id {
         query.push(("country_id".to_string(), country_id.to_string()));

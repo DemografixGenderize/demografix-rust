@@ -138,6 +138,29 @@ fn agify_batch_parses_in_order_with_quota() {
     assert_eq!(batch.quota.remaining, 24987);
 }
 
+// 8. A one-name batch still sends name[] and parses a one-element array.
+
+#[test]
+fn one_name_batch_still_sends_name_array() {
+    let stub = StubTransport::ok(r#"[ { "count": 311558, "name": "michael", "age": 57 } ]"#);
+    let shared = std::sync::Arc::new(stub);
+    let client =
+        BlockingDemografix::with_transport(SharedStub(std::sync::Arc::clone(&shared)), "test-key");
+    let batch = client.agify_batch(&["michael"], None).unwrap();
+
+    assert_eq!(batch.results.len(), 1);
+    assert_eq!(batch.results[0].age, Some(57));
+    let captured = shared.captured();
+    let names: Vec<&str> = captured
+        .query
+        .iter()
+        .filter(|(k, _)| k == "name[]")
+        .map(|(_, v)| v.as_str())
+        .collect();
+    assert_eq!(names, vec!["michael"]);
+    assert!(captured.query.iter().all(|(k, _)| k != "name"));
+}
+
 // 3. Null prediction — age null, no error raised.
 
 #[test]

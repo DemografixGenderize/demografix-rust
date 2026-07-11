@@ -126,7 +126,7 @@ impl<T: BlockingTransport> BlockingDemografix<T> {
         name: &str,
         country_id: Option<&str>,
     ) -> Result<GenderizeResult, Error> {
-        let request = self.build_request(GENDERIZE_BASE, &[name], country_id);
+        let request = self.build_request(GENDERIZE_BASE, &[name], country_id, false);
         let (prediction, quota) = self.send_single(request)?;
         Ok(GenderizeResult { prediction, quota })
     }
@@ -138,14 +138,14 @@ impl<T: BlockingTransport> BlockingDemografix<T> {
         country_id: Option<&str>,
     ) -> Result<Batch<GenderizePrediction>, Error> {
         validate_batch_size(names)?;
-        let request = self.build_request(GENDERIZE_BASE, names, country_id);
+        let request = self.build_request(GENDERIZE_BASE, names, country_id, true);
         let (results, quota) = self.send_batch(request)?;
         Ok(Batch { results, quota })
     }
 
     /// Predict age for one name.
     pub fn agify(&self, name: &str, country_id: Option<&str>) -> Result<AgifyResult, Error> {
-        let request = self.build_request(AGIFY_BASE, &[name], country_id);
+        let request = self.build_request(AGIFY_BASE, &[name], country_id, false);
         let (prediction, quota) = self.send_single(request)?;
         Ok(AgifyResult { prediction, quota })
     }
@@ -157,14 +157,14 @@ impl<T: BlockingTransport> BlockingDemografix<T> {
         country_id: Option<&str>,
     ) -> Result<Batch<AgifyPrediction>, Error> {
         validate_batch_size(names)?;
-        let request = self.build_request(AGIFY_BASE, names, country_id);
+        let request = self.build_request(AGIFY_BASE, names, country_id, true);
         let (results, quota) = self.send_batch(request)?;
         Ok(Batch { results, quota })
     }
 
     /// Predict nationality for one name. Nationalize takes no `country_id`.
     pub fn nationalize(&self, name: &str) -> Result<NationalizeResult, Error> {
-        let request = self.build_request(NATIONALIZE_BASE, &[name], None);
+        let request = self.build_request(NATIONALIZE_BASE, &[name], None, false);
         let (prediction, quota) = self.send_single(request)?;
         Ok(NationalizeResult { prediction, quota })
     }
@@ -172,15 +172,21 @@ impl<T: BlockingTransport> BlockingDemografix<T> {
     /// Predict nationality for a list of names (maximum 10).
     pub fn nationalize_batch(&self, names: &[&str]) -> Result<Batch<NationalizePrediction>, Error> {
         validate_batch_size(names)?;
-        let request = self.build_request(NATIONALIZE_BASE, names, None);
+        let request = self.build_request(NATIONALIZE_BASE, names, None, true);
         let (results, quota) = self.send_batch(request)?;
         Ok(Batch { results, quota })
     }
 
-    fn build_request(&self, base: &str, names: &[&str], country_id: Option<&str>) -> Request {
+    fn build_request(
+        &self,
+        base: &str,
+        names: &[&str],
+        country_id: Option<&str>,
+        batch: bool,
+    ) -> Request {
         Request {
             url: base.to_string(),
-            query: build_query(names, country_id, &self.api_key),
+            query: build_query(names, country_id, &self.api_key, batch),
             user_agent: USER_AGENT.to_string(),
         }
     }
