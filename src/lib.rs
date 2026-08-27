@@ -1,4 +1,4 @@
-//! Predict gender, age, and nationality from first names.
+//! Predict gender, age, and nationality from names.
 //!
 //! Official Rust client for the Demografix APIs: genderize.io (gender),
 //! agify.io (age), and nationalize.io (nationality).

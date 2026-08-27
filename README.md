@@ -1,6 +1,6 @@
 # demografix (Rust)
 
-Predict gender, age, and nationality from first names. One async Rust client covers all three
+Predict gender, age, and nationality from names. One async Rust client covers all three
 Demografix APIs — [genderize.io](https://genderize.io) (gender), [agify.io](https://agify.io) (age),
 and [nationalize.io](https://nationalize.io) (nationality) — with single-name lookups and batches of
 up to 100 names per request.
@@ -51,6 +51,8 @@ Batch methods return a `Batch` with `results` and one `quota`.
 
 ## genderize
 
+Predict gender from names.
+
 ```rust
 // Single name. Prediction fields read straight off the result through Deref.
 let result = client.genderize("peter", None).await?;
@@ -73,6 +75,8 @@ for p in &batch.results {
 
 ## agify
 
+Predict age from names.
+
 ```rust
 // Single name.
 let result = client.agify("michael", None).await?;
@@ -84,6 +88,8 @@ let ages: Vec<i64> = batch.results.iter().filter_map(|p| p.age).collect();
 ```
 
 ## nationalize
+
+Predict nationality from names.
 
 ```rust
 // Single name.
