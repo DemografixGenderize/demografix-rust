@@ -1,16 +1,19 @@
 [package]
 name = "demografix"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2021"
 license = "MIT"
 authors = ["Demografix"]
-description = "Official client for the Demografix APIs: genderize.io, agify.io, nationalize.io."
+description = "Predict gender, age, and nationality from first names. Official client for the genderize.io, agify.io, and nationalize.io APIs, with batches of up to 100 names per request."
 documentation = "https://genderize.io/documentation/api"
 homepage = "https://github.com/DemografixGenderize/demografix-rust"
 repository = "https://github.com/DemografixGenderize/demografix-rust"
 readme = "README.md"
-keywords = ["genderize", "agify", "nationalize", "demographics", "api"]
-categories = ["api-bindings"]
+# crates.io caps keywords at 5, each at most 20 characters. The crate name and
+# description already carry the genderize/agify/nationalize brand terms, so these
+# five slots go to the words people actually search.
+keywords = ["gender", "age", "nationality", "names", "demographics"]
+categories = ["api-bindings", "web-programming::http-client"]
 
 [features]
 default = []

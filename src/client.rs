@@ -26,7 +26,7 @@ pub(crate) const USER_AGENT: &str = concat!("demografix-rust/", env!("CARGO_PKG_
 /// Default request timeout.
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
 /// Maximum names per batch request; the server rejects more.
-const MAX_BATCH: usize = 10;
+const MAX_BATCH: usize = 100;
 
 /// A transport-agnostic outbound request.
 ///
@@ -167,7 +167,7 @@ impl<T: Transport> Demografix<T> {
         Ok(GenderizeResult { prediction, quota })
     }
 
-    /// Predict gender for a list of names (maximum 10).
+    /// Predict gender for a list of names (maximum 100).
     pub async fn genderize_batch(
         &self,
         names: &[&str],
@@ -186,7 +186,7 @@ impl<T: Transport> Demografix<T> {
         Ok(AgifyResult { prediction, quota })
     }
 
-    /// Predict age for a list of names (maximum 10).
+    /// Predict age for a list of names (maximum 100).
     pub async fn agify_batch(
         &self,
         names: &[&str],
@@ -205,7 +205,7 @@ impl<T: Transport> Demografix<T> {
         Ok(NationalizeResult { prediction, quota })
     }
 
-    /// Predict nationality for a list of names (maximum 10).
+    /// Predict nationality for a list of names (maximum 100).
     pub async fn nationalize_batch(
         &self,
         names: &[&str],
@@ -293,7 +293,7 @@ pub(crate) fn validate_api_key(api_key: &str) -> Result<(), Error> {
     Ok(())
 }
 
-/// Reject a batch over 10 names before any HTTP call.
+/// Reject a batch over 100 names before any HTTP call.
 pub(crate) fn validate_batch_size(names: &[&str]) -> Result<(), Error> {
     if names.len() > MAX_BATCH {
         return Err(Error::Validation {

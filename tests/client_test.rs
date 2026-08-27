@@ -279,13 +279,13 @@ async fn country_id_round_trips() {
         .any(|(k, v)| k == "apikey" && v == "test-key"));
 }
 
-// 5. Batch of 11 names raises ValidationError with no HTTP call.
+// 5. Batch of 101 names raises ValidationError with no HTTP call.
 
 #[tokio::test]
-async fn batch_over_ten_raises_validation_without_http() {
+async fn batch_over_max_raises_validation_without_http() {
     let stub = StubTransport::never();
     let client = Demografix::with_transport(stub, "test-key");
-    let names: Vec<&str> = vec!["n"; 11];
+    let names: Vec<&str> = vec!["n"; 101];
     let err = client.genderize_batch(&names, None).await.unwrap_err();
 
     match &err {

@@ -14,7 +14,7 @@ use std::fmt;
 /// - [`Error::Auth`] — status 401.
 /// - [`Error::Subscription`] — status 402.
 /// - [`Error::Validation`] — status 422, also raised client-side when a batch
-///   exceeds 10 names.
+///   exceeds 100 names.
 /// - [`Error::RateLimit`] — status 429; quota is always populated.
 /// - [`Error::Api`] — any other non-2xx status (the base error).
 /// - [`Error::Transport`] — network failure, timeout, or a non-JSON body; status
@@ -44,7 +44,7 @@ pub enum Error {
         /// Quota parsed from the response headers, when present.
         quota: Option<Quota>,
     },
-    /// Invalid request parameters (422), or a batch over 10 names rejected
+    /// Invalid request parameters (422), or a batch over 100 names rejected
     /// client-side before any HTTP call.
     Validation {
         /// HTTP status code. Zero for the client-side batch-size rejection.

@@ -131,7 +131,7 @@ impl<T: BlockingTransport> BlockingDemografix<T> {
         Ok(GenderizeResult { prediction, quota })
     }
 
-    /// Predict gender for a list of names (maximum 10).
+    /// Predict gender for a list of names (maximum 100).
     pub fn genderize_batch(
         &self,
         names: &[&str],
@@ -150,7 +150,7 @@ impl<T: BlockingTransport> BlockingDemografix<T> {
         Ok(AgifyResult { prediction, quota })
     }
 
-    /// Predict age for a list of names (maximum 10).
+    /// Predict age for a list of names (maximum 100).
     pub fn agify_batch(
         &self,
         names: &[&str],
@@ -169,7 +169,7 @@ impl<T: BlockingTransport> BlockingDemografix<T> {
         Ok(NationalizeResult { prediction, quota })
     }
 
-    /// Predict nationality for a list of names (maximum 10).
+    /// Predict nationality for a list of names (maximum 100).
     pub fn nationalize_batch(&self, names: &[&str]) -> Result<Batch<NationalizePrediction>, Error> {
         validate_batch_size(names)?;
         let request = self.build_request(NATIONALIZE_BASE, names, None, true);

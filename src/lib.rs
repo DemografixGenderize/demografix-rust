@@ -1,9 +1,12 @@
-//! Official Rust client for the Demografix APIs: genderize.io, agify.io, and
-//! nationalize.io.
+//! Predict gender, age, and nationality from first names.
+//!
+//! Official Rust client for the Demografix APIs: genderize.io (gender),
+//! agify.io (age), and nationalize.io (nationality).
 //!
 //! One client covers all three services through the same shape. Each call
 //! returns prediction fields plus the remaining [`Quota`] read from the
-//! response headers. Batch calls aggregate up to 10 names per request.
+//! response headers. Batch calls carry up to 100 names per request for bulk
+//! lookups.
 //!
 //! A single-name result derefs to its prediction, so the prediction fields read
 //! directly off the result (`result.gender`), while `result.quota` reads the

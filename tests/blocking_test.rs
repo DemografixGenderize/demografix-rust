@@ -214,13 +214,13 @@ impl BlockingTransport for SharedStub {
     }
 }
 
-// 5. Batch of 11 names raises ValidationError with no HTTP call.
+// 5. Batch of 101 names raises ValidationError with no HTTP call.
 
 #[test]
-fn batch_over_ten_raises_validation_without_http() {
+fn batch_over_max_raises_validation_without_http() {
     let stub = StubTransport::never();
     let client = BlockingDemografix::with_transport(stub, "test-key");
-    let names: Vec<&str> = vec!["n"; 11];
+    let names: Vec<&str> = vec!["n"; 101];
     let err = client.genderize_batch(&names, None).unwrap_err();
 
     match &err {

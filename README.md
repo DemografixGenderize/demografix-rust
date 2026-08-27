@@ -1,16 +1,22 @@
 # demografix (Rust)
 
-Run demographic analysis over names — predicted gender, age, and nationality — from one async Rust client. The crate covers [genderize.io](https://genderize.io), [agify.io](https://agify.io), and [nationalize.io](https://nationalize.io).
+Predict gender, age, and nationality from first names. One async Rust client covers all three
+Demografix APIs — [genderize.io](https://genderize.io) (gender), [agify.io](https://agify.io) (age),
+and [nationalize.io](https://nationalize.io) (nationality) — with single-name lookups and batches of
+up to 100 names per request.
+
+[![crates.io](https://img.shields.io/crates/v/demografix)](https://crates.io/crates/demografix)
+[![CI](https://github.com/DemografixGenderize/demografix-rust/actions/workflows/ci.yml/badge.svg)](https://github.com/DemografixGenderize/demografix-rust/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 ## Install
-
-Add the crate to a project:
 
 ```sh
 cargo add demografix
 ```
 
-The client is async and depends on a Tokio runtime. A synchronous surface, `BlockingDemografix`, is available behind the `blocking` feature, which is off by default. See the blocking section below.
+The client is async and depends on a Tokio runtime. A synchronous surface, `BlockingDemografix`, is
+available behind the `blocking` feature, which is off by default. See the blocking section below.
 
 ## Quickstart
 
@@ -38,11 +44,12 @@ async fn main() -> Result<(), demografix::Error> {
 }
 ```
 
-## Usage
+Each service has a single-name method and a batch method. A single-name result derefs to its
+prediction, so the prediction fields read directly off the result (`result.gender`) and
+`result.quota` reads the quota. The prediction is also reachable explicitly as `result.prediction`.
+Batch methods return a `Batch` with `results` and one `quota`.
 
-Each service has a single-name method and a batch method. A batch accepts at most 10 names. A single-name result derefs to its prediction, so the prediction fields read directly off the result (`result.gender`) and `result.quota` reads the quota. The prediction is also reachable explicitly as `result.prediction`. Batch methods return a `Batch` with `results` and one `quota`.
-
-### Genderize
+## genderize
 
 ```rust
 // Single name. Prediction fields read straight off the result through Deref.
@@ -62,7 +69,9 @@ for p in &batch.results {
 // split is the aggregate: how the list breaks down by gender.
 ```
 
-### Agify
+`gender` is `None` when no match is found. That is a successful response, not an error.
+
+## agify
 
 ```rust
 // Single name.
@@ -74,7 +83,7 @@ let batch = client.agify_batch(&["michael", "matthew", "jane"], None).await?;
 let ages: Vec<i64> = batch.results.iter().filter_map(|p| p.age).collect();
 ```
 
-### Nationalize
+## nationalize
 
 ```rust
 // Single name.
@@ -92,9 +101,27 @@ for p in &batch.results {
 // mix is the aggregate: the top country per name across the list.
 ```
 
+## Batch limit
+
+Each batch accepts at most 100 names. A batch of more than 100 returns `Error::Validation`
+client-side, before any request goes out. Chunk a longer list and aggregate across the chunks.
+
+```rust
+let mut split = std::collections::HashMap::new();
+for chunk in roster.chunks(100) {
+    let batch = client.genderize_batch(chunk, None).await?;
+    for p in &batch.results {
+        let label = p.gender.clone().unwrap_or_else(|| "unknown".into());
+        *split.entry(label).or_insert(0) += 1;
+    }
+}
+```
+
 ## country_id
 
-`genderize` and `agify` accept an optional `country_id` (ISO 3166-1 alpha-2) to scope the prediction to a country. Pass it as the second argument. The API echoes it back uppercase in `country_id`. `nationalize` takes no `country_id`.
+`genderize` and `agify` accept an optional `country_id` (ISO 3166-1 alpha-2) to scope the prediction
+to a country. Pass it as the second argument. The API echoes it back uppercase in `country_id`.
+`nationalize` takes no `country_id`.
 
 ```rust
 let result = client.genderize("kim", Some("US")).await?;
@@ -103,9 +130,20 @@ result.country_id; // Some("US")
 let batch = client.agify_batch(&["kim", "andrea"], Some("DK")).await?;
 ```
 
+Scoping changes the prediction: `andrea` reads female with probability 0.99 in the United States and
+male with probability 0.79 in Italy.
+
+```rust
+client.genderize("andrea", Some("US")).await?.gender; // Some("female")
+client.genderize("andrea", Some("IT")).await?.gender; // Some("male")
+```
+
+When the request sends no `country_id`, the field is `None`.
+
 ## Quota
 
-Every result and every error carries a `Quota` read from the rate-limit response headers. Quota is read off a returned value or a raised error. It is never cached on the client.
+Every result and every error carries a `Quota` read from the rate-limit response headers. Quota is
+read off a returned value or a raised error. It is never cached on the client.
 
 | Field | Meaning |
 |---|---|
@@ -122,20 +160,23 @@ result.quota.reset;     // 1314000
 
 ## Errors
 
-Every method returns `Result<T, Error>`. `Error` is a single enum whose variants map to the cross-language error hierarchy by HTTP status:
+Every method returns `Result<T, Error>`. `Error` is a single enum whose variants map to the
+cross-language error hierarchy by HTTP status:
 
 | Variant | Cause |
 |---|---|
 | `Error::Auth` | 401, invalid or missing API key |
 | `Error::Subscription` | 402, subscription problem |
-| `Error::Validation` | 422, or a batch over 10 names rejected before any HTTP call |
+| `Error::Validation` | 422, or a batch over 100 names rejected before any HTTP call |
 | `Error::RateLimit` | 429, rate limit reached; quota is always populated |
 | `Error::Api` | any other non-2xx status |
 | `Error::Transport` | network failure, timeout, or a non-JSON body |
 
-Read the status, message, and quota through the accessor methods `status()`, `message()`, and `quota()`. A batch over 10 names raises `Error::Validation` client-side, before any request goes out.
+Read the status, message, and quota through the accessor methods `status()`, `message()`, and
+`quota()`.
 
-On a `RateLimitError`, `quota.reset` reports how many seconds remain before the window resets. Use it to back off:
+On `Error::RateLimit`, `quota.reset` reports how many seconds remain before the window resets. Use it
+to back off:
 
 ```rust
 use demografix::{Demografix, Error};
@@ -159,7 +200,7 @@ async fn genderize_with_backoff(
 }
 ```
 
-## Methods reference
+## Methods
 
 | Method | Returns | country_id |
 |---|---|---|
@@ -170,18 +211,23 @@ async fn genderize_with_backoff(
 | `nationalize(name)` | `NationalizeResult` | no |
 | `nationalize_batch(names)` | `Batch<NationalizePrediction>` | no |
 
-Construct the client with `Demografix::new(api_key)` for the default 10-second timeout, or `Demografix::with_timeout(api_key, duration)` to set your own. The API key is required. An empty or blank key makes every request fail with `Error::Validation` before any HTTP call.
+Construct the client with `Demografix::new(api_key)` for the default 10-second timeout, or
+`Demografix::with_timeout(api_key, duration)` to set your own. The API key is required. An empty or
+blank key makes every request fail with `Error::Validation` before any HTTP call. The base URLs and
+the User-Agent are fixed constants, not options.
 
 ## Blocking
 
-A synchronous client is available behind the `blocking` feature, which is off by default. Enable it for code that does not run on an async runtime:
+A synchronous client is available behind the `blocking` feature, which is off by default. Enable it
+for code that does not run on an async runtime:
 
 ```toml
 [dependencies]
-demografix = { version = "0.1.0", features = ["blocking"] }
+demografix = { version = "0.2", features = ["blocking"] }
 ```
 
-`BlockingDemografix` mirrors the async surface method for method, with the same models, errors, and quota. The methods return their results directly, without `.await`.
+`BlockingDemografix` mirrors the async surface method for method, with the same models, errors, and
+quota. The methods return their results directly, without `.await`.
 
 ```rust
 use demografix::BlockingDemografix;
@@ -202,9 +248,15 @@ fn main() -> Result<(), demografix::Error> {
 
 ## API keys
 
-An API key is required. Creating one is free and includes 2,500 requests per month. Generate a key in your dashboard at [genderize.io](https://genderize.io), [agify.io](https://agify.io), or [nationalize.io](https://nationalize.io). One key works across all three services.
+An API key is required. Creating one is free and includes 2,500 names per month.
 
-Full API reference: <https://genderize.io/documentation/api>
+Quota counts **names, not requests**. A single-name call costs 1. A batch of 100 names costs 100. The
+free tier therefore covers 2,500 names in a month however they are split across calls.
+
+Generate a key in your dashboard at [genderize.io](https://genderize.io),
+[agify.io](https://agify.io), or [nationalize.io](https://nationalize.io). One key works across all
+three services. Full reference:
+[genderize.io/documentation/api](https://genderize.io/documentation/api).
 
 ## License
 
